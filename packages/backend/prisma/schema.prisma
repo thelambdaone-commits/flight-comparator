@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Route {
+  id           String   @id @default(uuid())
+  origin       String
+  destination  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  priceHistory PriceHistory[]
+  alerts       Alert[]
+  mlPredictions MLPrediction[]
+
+  @@unique([origin, destination])
+  @@map("routes")
+}
+
+model PriceHistory {
+  id        String   @id @default(uuid())
+  routeId   String
+  price     Float
+  currency  String   @default("EUR")
+  airline   String   @default("")
+  pointOfSale String  @default("FR")
+  source    String   @default("google-flights")
+  timestamp DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, timestamp])
+  @@map("price_history")
+}
+
+model Alert {
+  id         String   @id @default(uuid())
+  routeId    String
+  targetPrice Float
+  currency   String   @default("EUR")
+  chatId     String
+  isActive   Boolean  @default(true)
+  lastNotifiedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, isActive])
+  @@map("alerts")
+}
+
+model MLPrediction {
+  id           String   @id @default(uuid())
+  routeId      String
+  predictedPrice Float
+  minPrice     Float?
+  maxPrice     Float?
+  confidence   Float    @default(0.0)
+  bestTimeToBuy String?
+  modelVersion String   @default("v1")
+  createdAt    DateTime @default(now())
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, createdAt])
+  @@map("ml_predictions")
+}

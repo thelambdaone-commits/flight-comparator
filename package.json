@@ -1,0 +1,27 @@
+{
+  "name": "flight-comparator",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "start": "turbo start",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "db:generate": "cd packages/backend && npx prisma generate",
+    "db:push": "cd packages/backend && npx prisma db push",
+    "db:migrate": "cd packages/backend && npx prisma migrate dev"
+  },
+  "devDependencies": {
+    "@turbo/gen": "^2.4.4",
+    "prettier": "^3.5.0",
+    "turbo": "^2.4.4",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "npm@11.0.0",
+  "workspaces": [
+    "packages/*"
+  ]
+}

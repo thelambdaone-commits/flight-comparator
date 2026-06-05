@@ -1,0 +1,91 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: flightcmp
+      POSTGRES_PASSWORD: flightcmp
+      POSTGRES_DB: flightcmp
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flightcmp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  scraper:
+    build:
+      context: ../packages/scraper
+      dockerfile: ../../docker/Dockerfile.scraper
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://flightcmp:flightcmp@postgres:5432/flightcmp"
+      REDIS_URL: "redis://redis:6379"
+      HEADLESS: "true"
+    volumes:
+      - ../packages/scraper/src:/app/src
+
+  backend:
+    build:
+      context: ../packages/backend
+      dockerfile: ../../docker/Dockerfile.backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: "postgresql://flightcmp:flightcmp@postgres:5432/flightcmp"
+      REDIS_URL: "redis://redis:6379"
+
+  ml-engine:
+    build:
+      context: ../packages/ml-engine
+      dockerfile: ../../docker/Dockerfile.ml-engine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql://flightcmp:flightcmp@postgres:5432/flightcmp"
+    volumes:
+      - ../packages/ml-engine/src:/app/src
+      - ../packages/ml-engine/models:/app/models
+
+  frontend:
+    build:
+      context: ../packages/frontend
+      dockerfile: ../../docker/Dockerfile.frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:4000"
+
+volumes:
+  pgdata:
+  redisdata:
