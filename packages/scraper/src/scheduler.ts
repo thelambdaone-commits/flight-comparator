@@ -2,7 +2,8 @@ import cron from 'node-cron'
 import { GoogleFlightsScraper } from './providers/google-flights.js'
 import { ProxyManager } from './stealth/proxy-manager.js'
 import { HumanBehavior } from './stealth/human-behavior.js'
-import { FlightSearchParams } from './models.js'
+import { FlightSearchParams, ScrapeResult } from './models.js'
+import { prisma } from './database.js'
 
 export class Scheduler {
   private tasks: cron.ScheduledTask[] = []
@@ -61,9 +62,50 @@ export class Scheduler {
           console.log(`  ${result.pos}: No flights found${result.error ? ` (${result.error})` : ''}`)
         }
       }
+
+      await this.persistPrices(origin, destination, results)
     })
 
     this.tasks.push(task)
+  }
+
+  // Écrit le meilleur prix de chaque POS dans PriceHistory (upsert de la route).
+  // C'est ce qui alimente les commandes du bot (/search, /deals, /predict) et le
+  // worker d'alertes côté backend.
+  private async persistPrices(
+    origin: string,
+    destination: string,
+    results: ScrapeResult[]
+  ): Promise<void> {
+    const points = results
+      .filter((r) => r.flights.length > 0)
+      .map((r) => {
+        const best = Math.min(...r.flights.map((f) => f.price))
+        const flight = r.flights.find((f) => f.price === best)
+        return {
+          price: best,
+          currency: flight?.currency || 'EUR',
+          airline: flight?.airline || '',
+          pointOfSale: r.pos,
+          source: 'google-flights',
+        }
+      })
+
+    if (points.length === 0) return
+
+    try {
+      const route = await prisma.route.upsert({
+        where: { origin_destination: { origin, destination } },
+        update: {},
+        create: { origin, destination },
+      })
+      await prisma.priceHistory.createMany({
+        data: points.map((p) => ({ routeId: route.id, ...p })),
+      })
+      console.log(`  💾 ${points.length} prix enregistrés pour ${origin}→${destination}`)
+    } catch (error) {
+      console.error('  ⚠️ Persistance des prix échouée:', error)
+    }
   }
 
   private getDateString(daysFromNow: number): string {
