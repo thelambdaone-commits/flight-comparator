@@ -35,7 +35,10 @@ async function main() {
   if (token) {
     const bot = new TelegramBot(token)
     bot.start().catch(console.error)
-    new AlertWorker(bot).start()
+    const intervalMs = process.env.ALERT_CHECK_INTERVAL_MS
+      ? parseInt(process.env.ALERT_CHECK_INTERVAL_MS)
+      : undefined
+    new AlertWorker(bot, intervalMs).start()
   } else {
     console.log('⚠️ TELEGRAM_BOT_TOKEN not set, bot disabled')
     console.log('   Get one from https://t.me/BotFather')
