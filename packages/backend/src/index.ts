@@ -1,9 +1,19 @@
-import 'dotenv/config'
+import dotenv from 'dotenv'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
 import Fastify from 'fastify'
+
+// Le .env vit à la racine du monorepo. En dev (tsx, cwd=packages/backend) comme
+// en prod (node dist/, même cwd), dotenv/config ne le trouverait pas. On charge
+// d'abord un éventuel .env local, puis celui de la racine en repli.
+dotenv.config()
+dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env') })
+
 import cors from '@fastify/cors'
 import { connectDB } from './database.js'
 import { flightRoutes, alertRoutes, predictionRoutes } from './routes/index.js'
 import { TelegramBot } from './bot/telegram.js'
+import { AlertWorker } from './alert-worker.js'
 
 async function main() {
   await connectDB()
@@ -25,6 +35,10 @@ async function main() {
   if (token) {
     const bot = new TelegramBot(token)
     bot.start().catch(console.error)
+    const intervalMs = process.env.ALERT_CHECK_INTERVAL_MS
+      ? parseInt(process.env.ALERT_CHECK_INTERVAL_MS)
+      : undefined
+    new AlertWorker(bot, intervalMs).start()
   } else {
     console.log('⚠️ TELEGRAM_BOT_TOKEN not set, bot disabled')
     console.log('   Get one from https://t.me/BotFather')

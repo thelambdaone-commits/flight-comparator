@@ -243,8 +243,14 @@ export class TelegramBot {
           return
         }
 
+        const withPrices = routes.filter((r) => r.priceHistory.length > 0)
+        if (withPrices.length === 0) {
+          await ctx.reply('📭 Aucun deal pour le moment. Reviens plus tard !')
+          return
+        }
+
         let message = '💰 *Meilleurs deals du moment :*\n\n'
-        for (const route of routes) {
+        for (const route of withPrices) {
           const min = Math.min(...route.priceHistory.map((p) => p.price))
           const last = route.priceHistory[0]?.price || 0
           message += `✈️ ${route.origin}→${route.destination} : ` +
